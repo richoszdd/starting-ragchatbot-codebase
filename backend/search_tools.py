@@ -8,11 +8,11 @@ class Tool(ABC):
     
     @abstractmethod
     def get_tool_definition(self) -> Dict[str, Any]:
-        """Return Anthropic tool definition for this tool"""
+        """Return Google tool definition for this tool"""
         pass
     
     @abstractmethod
-    def execute(self, **kwargs) -> str:
+    def execute(self, **kwargs) -> Dict[str, Any]:
         """Execute the tool with given parameters"""
         pass
 
@@ -25,23 +25,23 @@ class CourseSearchTool(Tool):
         self.last_sources = []  # Track sources from last search
     
     def get_tool_definition(self) -> Dict[str, Any]:
-        """Return Anthropic tool definition for this tool"""
+        """Return Google tool definition for this tool"""
         return {
             "name": "search_course_content",
             "description": "Search course materials with smart course name matching and lesson filtering",
-            "input_schema": {
-                "type": "object",
+            "parameters": {
+                "type": "OBJECT",
                 "properties": {
                     "query": {
-                        "type": "string", 
+                        "type": "STRING", 
                         "description": "What to search for in the course content"
                     },
                     "course_name": {
-                        "type": "string",
+                        "type": "STRING",
                         "description": "Course title (partial matches work, e.g. 'MCP', 'Introduction')"
                     },
                     "lesson_number": {
-                        "type": "integer",
+                        "type": "INTEGER",
                         "description": "Specific lesson number to search within (e.g. 1, 2, 3)"
                     }
                 },
@@ -49,7 +49,7 @@ class CourseSearchTool(Tool):
             }
         }
     
-    def execute(self, query: str, course_name: Optional[str] = None, lesson_number: Optional[int] = None) -> str:
+    def execute(self, query: str, course_name: Optional[str] = None, lesson_number: Optional[int] = None) -> Dict[str, Any]:
         """
         Execute the search tool with given parameters.
         
@@ -71,7 +71,7 @@ class CourseSearchTool(Tool):
         
         # Handle errors
         if results.error:
-            return results.error
+            return {"error": results.error}
         
         # Handle empty results
         if results.is_empty():
@@ -80,12 +80,12 @@ class CourseSearchTool(Tool):
                 filter_info += f" in course '{course_name}'"
             if lesson_number:
                 filter_info += f" in lesson {lesson_number}"
-            return f"No relevant content found{filter_info}."
+            return {"results": f"No relevant content found{filter_info}."}
         
         # Format and return results
         return self._format_results(results)
     
-    def _format_results(self, results: SearchResults) -> str:
+    def _format_results(self, results: SearchResults) -> Dict[str, Any]:
         """Format search results with course and lesson context"""
         formatted = []
         sources = []  # Track sources for the UI
@@ -101,17 +101,24 @@ class CourseSearchTool(Tool):
             header += "]"
             
             # Track source for the UI
-            source = course_title
+            source_text = course_title
             if lesson_num is not None:
-                source += f" - Lesson {lesson_num}"
-            sources.append(source)
+                source_text += f" - Lesson {lesson_num}"
+            
+            lesson_link = meta.get('lesson_link')
+            course_link = meta.get('course_link')
+
+            sources.append({
+                "text": source_text,
+                "link": lesson_link or course_link
+            })
             
             formatted.append(f"{header}\n{doc}")
         
         # Store sources for retrieval
         self.last_sources = sources
         
-        return "\n\n".join(formatted)
+        return {"results": "\n\n".join(formatted)}
 
 class ToolManager:
     """Manages available tools for the AI"""
@@ -129,13 +136,13 @@ class ToolManager:
 
     
     def get_tool_definitions(self) -> list:
-        """Get all tool definitions for Anthropic tool calling"""
+        """Get all tool definitions for Google tool calling"""
         return [tool.get_tool_definition() for tool in self.tools.values()]
     
-    def execute_tool(self, tool_name: str, **kwargs) -> str:
+    def execute_tool(self, tool_name: str, **kwargs) -> Dict[str, Any]:
         """Execute a tool by name with given parameters"""
         if tool_name not in self.tools:
-            return f"Tool '{tool_name}' not found"
+            return {"error": f"Tool '{tool_name}' not found"}
         
         return self.tools[tool_name].execute(**kwargs)
     

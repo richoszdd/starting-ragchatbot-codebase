@@ -10,7 +10,7 @@ class Config:
     """Configuration settings for the RAG system"""
     # Gemini API settings
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = "gemini-1.5-pro-latest"
+    GEMINI_MODEL: str = "gemini-pro-latest"
     
     # Embedding model settings
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"

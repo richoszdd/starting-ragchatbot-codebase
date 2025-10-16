@@ -5,7 +5,7 @@ from vector_store import VectorStore
 from ai_generator import AIGenerator
 from session_manager import SessionManager
 from search_tools import ToolManager, CourseSearchTool
-from models import Course, Lesson, CourseChunk
+from models import Course, Lesson, CourseChunk, Message
 
 class RAGSystem:
     """Main orchestrator for the Retrieval-Augmented Generation system"""
@@ -16,12 +16,12 @@ class RAGSystem:
         # Initialize core components
         self.document_processor = DocumentProcessor(config.CHUNK_SIZE, config.CHUNK_OVERLAP)
         self.vector_store = VectorStore(config.CHROMA_PATH, config.EMBEDDING_MODEL, config.MAX_RESULTS)
-        self.ai_generator = AIGenerator(config.ANTHROPIC_API_KEY, config.ANTHROPIC_MODEL)
+        self.search_tool = CourseSearchTool(self.vector_store)
+        self.ai_generator = AIGenerator(config.GEMINI_API_KEY, config.GEMINI_MODEL, tools=[self.search_tool.execute])
         self.session_manager = SessionManager(config.MAX_HISTORY)
         
         # Initialize search tools
         self.tool_manager = ToolManager()
-        self.search_tool = CourseSearchTool(self.vector_store)
         self.tool_manager.register_tool(self.search_tool)
     
     def add_course_document(self, file_path: str) -> Tuple[Course, int]:
@@ -114,16 +114,14 @@ class RAGSystem:
         prompt = f"""Answer this question about course materials: {query}"""
         
         # Get conversation history if session exists
-        history = None
+        history: Optional[List[Message]] = None
         if session_id:
             history = self.session_manager.get_conversation_history(session_id)
         
         # Generate response using AI with tools
         response = self.ai_generator.generate_response(
             query=prompt,
-            conversation_history=history,
-            tools=self.tool_manager.get_tool_definitions(),
-            tool_manager=self.tool_manager
+            conversation_history=history
         )
         
         # Get sources from the search tool

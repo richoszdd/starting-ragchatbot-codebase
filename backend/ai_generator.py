@@ -1,5 +1,6 @@
 import google.generativeai as genai
 from typing import List, Optional, Dict, Any
+from models import Message
 
 class AIGenerator:
     """Handles interactions with Google's Gemini API for generating responses"""
@@ -28,76 +29,33 @@ All responses must be:
 Provide only the direct answer to what was asked.
 """
     
-    def __init__(self, api_key: str, model: str):
+    def __init__(self, api_key: str, model: str, tools: Optional[List] = None):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model, system_instruction=self.SYSTEM_PROMPT)
+        self.model = genai.GenerativeModel(model, system_instruction=self.SYSTEM_PROMPT, tools=tools)
         
     def generate_response(self, query: str,
-                         conversation_history: Optional[str] = None,
-                         tools: Optional[List] = None,
-                         tool_manager=None) -> str:
+                         conversation_history: Optional[List[Message]] = None) -> str:
         """
         Generate AI response with optional tool usage and conversation context.
         
         Args:
             query: The user's question or request
             conversation_history: Previous messages for context
-            tools: Available tools the AI can use
-            tool_manager: Manager to execute tools
             
         Returns:
             Generated response as string
         """
         
-        chat = self.model.start_chat()
-        
-        # Add conversation history to the chat
+        history = []
         if conversation_history:
-            # The Gemini API expects a list of Content objects
-            # We need to parse the string history into this format
-            # Assuming history is a simple string, we can't easily reconstruct the full conversation
-            # For now, we will just send the last user message
-            # A better implementation would store the history in a more structured way
-            pass
+            for msg in conversation_history:
+                role = "model" if msg.role == "assistant" else msg.role
+                history.append({"role": role, "parts": [{"text": msg.content}]})
+        
+        chat = self.model.start_chat(history=history, enable_automatic_function_calling=True)
 
         # Send the user's query to the model
-        response = chat.send_message(query, tools=tools)
-        
-        # Handle tool execution if needed
-        if response.function_calls and tool_manager:
-            return self._handle_tool_execution(response, chat, tool_manager)
+        response = chat.send_message(query)
         
         # Return direct response
-        return response.text
-    
-    def _handle_tool_execution(self, initial_response, chat, tool_manager):
-        """
-        Handle execution of tool calls and get follow-up response.
-        
-        Args:
-            initial_response: The response containing tool use requests
-            chat: The chat object
-            tool_manager: Manager to execute tools
-            
-        Returns:
-            Final response text after tool execution
-        """
-        
-        # Execute the function call
-        function_call = initial_response.function_calls[0]
-        tool_result = tool_manager.execute_tool(
-            function_call.name, 
-            **function_call.args
-        )
-        
-        # Send the tool result back to the model
-        response = chat.send_message(
-            part=genai.Part(
-                function_response=genai.FunctionResponse(
-                    name=function_call.name,
-                    response=tool_result,
-                ),
-            ),
-        )
-        
         return response.text

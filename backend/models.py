@@ -18,5 +18,12 @@ class CourseChunk(BaseModel):
     """Represents a text chunk from a course for vector storage"""
     content: str                        # The actual text content
     course_title: str                   # Which course this chunk belongs to
+    course_link: Optional[str] = None   # URL link to the course
     lesson_number: Optional[int] = None # Which lesson this chunk is from
+    lesson_link: Optional[str] = None   # URL link to the lesson
     chunk_index: int                    # Position of this chunk in the document
+
+class Message(BaseModel):
+    """Represents a single message in a conversation"""
+    role: str     # "user" or "assistant"
+    content: str  # The message content
